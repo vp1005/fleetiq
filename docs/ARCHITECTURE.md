@@ -52,4 +52,50 @@ only OOB can take action when the host is hung.
 
 ### Module 1 — gpu-simulator
 
-(Filled in after module 1 is done.)
+A single FastAPI service (`services/gpu-simulator/main.py`) that simulates one
+NVIDIA GPU. State is held in a `GpuState` dataclass and advanced by a 1 Hz
+async tick loop using exponential smoothing (`alpha=0.3`) toward per-workload
+target values. Fault injection (thermal runaway, ECC storm, NVLink flap,
+gpu_drop) is applied on each tick. The `gpu_drop` fault sets `alive=False`,
+causing all endpoints to return 503. The tick loop short-circuits when `alive`
+is false so state doesn't drift while dropped.
+
+Key implementation note: the `/api/v1/fault/clear` route must be declared
+before `/api/v1/fault/{fault}` because FastAPI matches routes in declaration
+order and the path-param route would otherwise swallow the literal `"clear"`.
+
+### Module 2 — collection-agent
+
+A FastAPI service (`services/collection-agent/main.py`) that acts as a
+Prometheus exporter for the GPU fleet.
+
+**Pull-based monitoring:** Prometheus scrapes the agent's `/metrics` endpoint on
+demand. The agent does not push; it caches the latest telemetry from a
+background poll loop and serves it whenever Prometheus asks.
+
+**Polling:** An async `poll_loop` task starts with the FastAPI lifespan and
+polls every simulator URL concurrently via `httpx.AsyncClient`. Each
+`poll_once` call does a `GET /api/v1/gpu`; on success it writes the JSON into
+`_cache[gpu_id]`; on failure it sets `_cache[gpu_id] = None` (if we've seen
+that GPU before). URLs that have never responded successfully are silently
+skipped — we can't emit `gpu_up=0` without knowing the `gpu_id` label.
+
+**Custom collector:** Rather than using prometheus_client's default gauge/counter
+objects (which require delta tracking for counters), the agent uses a custom
+`GpuCollector` class registered on a private `CollectorRegistry`. Its
+`collect()` method is called synchronously each time `generate_latest()` runs
+and reads a `list()` snapshot of `_cache` — safe under asyncio's
+single-threaded cooperative model. This is the same pattern real exporters
+(`dcgm-exporter`, `node_exporter`) follow.
+
+**Metric types used:**
+- `GaugeMetricFamily` — temperature, power, utilization, memory, NVLink,
+  and the `gpu_up` sentinel.
+- `CounterMetricFamily` — ECC corrected/uncorrected totals. The library
+  automatically appends `_total` to counter names in the exposition format.
+
+**Unit conversions** follow Prometheus convention: memory in bytes (MB × 2²⁰),
+NVLink bandwidth in bytes/s (Gbps × 10⁹).
+
+**Config:** `SIMULATOR_URLS` (comma-separated, default `http://localhost:8001`)
+and `POLL_INTERVAL_S` (default `5`) are environment variables.
