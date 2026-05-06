@@ -41,8 +41,8 @@ fleetiq/
 | # | Module                  | Status      |
 |---|-------------------------|-------------|
 | 1 | gpu-simulator           | done        |
-| 2 | collection-agent        | next        |
-| 3 | Prometheus + Grafana    | pending     |
+| 2 | collection-agent        | done        |
+| 3 | Prometheus + Grafana    | done        |
 | 4 | Alertmanager            | pending     |
 | 5 | redfish-mock            | pending     |
 | 6 | fleet-api               | pending     |

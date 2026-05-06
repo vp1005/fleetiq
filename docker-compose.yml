@@ -1,0 +1,75 @@
+services:
+  gpu-sim-0:
+    build: ./services/gpu-simulator
+    container_name: gpu-sim-0
+    environment:
+      GPU_ID: GPU-0
+    ports:
+      - "8001:8001"
+
+  gpu-sim-1:
+    build: ./services/gpu-simulator
+    container_name: gpu-sim-1
+    environment:
+      GPU_ID: GPU-1
+    ports:
+      - "8002:8001"
+
+  gpu-sim-2:
+    build: ./services/gpu-simulator
+    container_name: gpu-sim-2
+    environment:
+      GPU_ID: GPU-2
+    ports:
+      - "8003:8001"
+
+  gpu-sim-3:
+    build: ./services/gpu-simulator
+    container_name: gpu-sim-3
+    environment:
+      GPU_ID: GPU-3
+    ports:
+      - "8004:8001"
+
+  collection-agent:
+    build: ./services/collection-agent
+    container_name: collection-agent
+    environment:
+      SIMULATOR_URLS: "http://gpu-sim-0:8001,http://gpu-sim-1:8001,http://gpu-sim-2:8001,http://gpu-sim-3:8001"
+      POLL_INTERVAL_S: "5"
+    ports:
+      - "9100:9100"
+    depends_on:
+      - gpu-sim-0
+      - gpu-sim-1
+      - gpu-sim-2
+      - gpu-sim-3
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: prometheus
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=6h"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - collection-agent
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: "dark"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
