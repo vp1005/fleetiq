@@ -99,3 +99,48 @@ NVLink bandwidth in bytes/s (Gbps × 10⁹).
 
 **Config:** `SIMULATOR_URLS` (comma-separated, default `http://localhost:8001`)
 and `POLL_INTERVAL_S` (default `5`) are environment variables.
+
+### Module 3 — Prometheus + Grafana
+
+The first end-to-end visible win. A `docker-compose.yml` at the repo root brings
+up the whole stack on one Docker network: 4 GPU simulators (`gpu-sim-0..3`),
+the collection-agent, Prometheus, and Grafana. Each service reaches the others
+by Compose service name; ports are exposed to the host only for human poking.
+
+**Dockerfiles.** Each Python service got a minimal Dockerfile
+(`python:3.12-slim` → install requirements → copy `main.py` → run uvicorn).
+The simulator listens on container port 8001 and host ports 8001–8004 are
+mapped one per replica so you can curl them individually. The collection-agent
+gets `SIMULATOR_URLS` via env: a comma-separated list of all four sim DNS names.
+
+**Prometheus config** (`infra/prometheus/prometheus.yml`) declares one scrape
+job for `collection-agent:9100` plus a self-scrape. Scrape interval 15s,
+retention 6h. Fan-out to individual GPUs happens *inside* the agent — Prometheus
+only knows about one target. This mirrors how `dcgm-exporter` works in real
+fleets: Prometheus scrapes a single endpoint per node.
+
+**Grafana provisioning.** `infra/grafana/provisioning/` configures the
+Prometheus datasource (uid `prometheus`, fixed so dashboards can reference it
+deterministically) and a file-based dashboard provider that loads everything
+under `infra/grafana/dashboards/` into a `FleetIQ` folder. Anonymous Admin
+access is enabled so `localhost:3000` opens straight into the dashboards.
+
+**Two dashboards (dashboard-as-code, JSON in git):**
+- `fleet-overview.json` — top-level row of stat panels (GPUs Up, Total GPUs,
+  Fleet Avg Temp, Total Fleet Power), then time-series for temperature,
+  power, utilization, and ECC error rate, all broken down by `gpu_id`.
+- `per-gpu.json` — uses a Grafana template variable `$gpu_id` (populated by
+  `label_values(gpu_up, gpu_id)`) to filter every panel to one GPU at a time.
+  Shows temp, power, util, memory used vs total, NVLink, ECC rate.
+
+**Key PromQL idioms used:**
+- `sum(gpu_up)` / `count(gpu_up)` — fleet-wide aggregations.
+- `rate(gpu_ecc_errors_corrected_total[1m])` — counter → per-second rate.
+- `gpu_temperature_celsius{gpu_id="$gpu_id"}` — label filter against a
+  template variable.
+- `gpu_up == 0` — boolean filter to surface only failing GPUs in a stat panel.
+
+**Demo:** `docker compose up -d --build`, open `http://localhost:3000`, then
+`curl -X POST http://localhost:8001/api/v1/fault/thermal_runaway` and watch
+`gpu-sim-0`'s temperature line cross the 85 °C red threshold within ~30s
+(5s simulator tick + 5s agent poll + 15s scrape).

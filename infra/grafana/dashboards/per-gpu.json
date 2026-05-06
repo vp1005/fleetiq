@@ -1,0 +1,163 @@
+{
+  "uid": "per-gpu",
+  "title": "FleetIQ — Per-GPU Deep Dive",
+  "tags": ["fleetiq"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "gpu_id",
+        "label": "GPU",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "query": {"query": "label_values(gpu_up, gpu_id)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+        "definition": "label_values(gpu_up, gpu_id)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Temperature — $gpu_id",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "gpu_temperature_celsius{gpu_id=\"$gpu_id\"}", "refId": "A", "legendFormat": "temp"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 20},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 70, "color": "yellow"},
+              {"value": 85, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Power — $gpu_id",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "gpu_power_watts{gpu_id=\"$gpu_id\"}", "refId": "A", "legendFormat": "power"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 20}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Utilization — $gpu_id",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "gpu_utilization_percent{gpu_id=\"$gpu_id\"}", "refId": "A", "legendFormat": "util"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 20}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Memory Used — $gpu_id",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "gpu_memory_used_bytes{gpu_id=\"$gpu_id\"}", "refId": "A", "legendFormat": "used"},
+        {"expr": "gpu_memory_total_bytes{gpu_id=\"$gpu_id\"}", "refId": "B", "legendFormat": "total"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "NVLink Bandwidth — $gpu_id",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "gpu_nvlink_bandwidth_bytes_per_second{gpu_id=\"$gpu_id\"}", "refId": "A", "legendFormat": "nvlink"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "ECC Error Rate — $gpu_id",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "rate(gpu_ecc_errors_corrected_total{gpu_id=\"$gpu_id\"}[1m])", "refId": "A", "legendFormat": "corrected/s"},
+        {"expr": "rate(gpu_ecc_errors_uncorrected_total{gpu_id=\"$gpu_id\"}[1m])", "refId": "B", "legendFormat": "uncorrected/s"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "bars", "lineWidth": 1, "fillOpacity": 60}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: fleetiq-local
+
+scrape_configs:
+  # collection-agent translates each GPU simulator's JSON into Prometheus
+  # metrics. One scrape job, one target — fan-out happens inside the agent.
+  - job_name: collection-agent
+    static_configs:
+      - targets:
+          - collection-agent:9100
+
+  # Self-scrape so Prometheus's own up/scrape_duration metrics are visible
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
